@@ -1,0 +1,123 @@
+#include <Servo.h>
+
+// ---------------- PINES ----------------
+
+// Sensores
+#define sensorIzq 22
+#define sensorDer 35
+
+// Motores
+#define motorIzq 19
+#define motorDer 32
+
+// Servo
+#define servoPin 25   
+
+Servo direccion;
+
+const int velocidadBase = 140;
+
+// PID
+float Kp = 50;
+float Ki = 0;
+float Kd = 25;
+
+int error = 0;
+int errorAnterior = 0;
+int sumaErrores = 0;
+
+
+// ---------------- SETUP ----------------
+
+void setup(){
+
+  pinMode(sensorIzq, INPUT);
+  pinMode(sensorDer, INPUT);
+
+  pinMode(motorIzq, OUTPUT);
+  pinMode(motorDer, OUTPUT);
+
+  direccion.attach(servoPin);
+  direccion.write(90);
+}
+// ---------------- LOOP ----------------
+void loop(){
+  // 🔁 LECTURA INVERTIDA (SOLUCIÓN AL PROBLEMA)
+  int izq = !digitalRead(sensorIzq);
+  int der = !digitalRead(sensorDer);
+  calcularError(izq, der);
+  int correccion = calcularPID();
+  controlarServo(correccion);
+  controlarMotores(correccion, izq, der);
+}
+// ---------------- SENSORES ----------------
+
+int leerSensorIzq(){
+  return digitalRead(sensorIzq);
+}
+int leerSensorDer(){
+  return digitalRead(sensorDer);
+}
+// ---------------- ERROR ----------------
+void calcularError(int izq, int der){
+  if(izq == HIGH && der == LOW) error = -1;
+  else if(izq == LOW && der == HIGH) error = 1;
+  else error = 0;
+}
+// ---------------- PID ----------------
+
+int calcularPID(){
+  sumaErrores += error;
+  int derivada = error - errorAnterior;
+  int correccion = Kp*error + Ki*sumaErrores + Kd*derivada;
+  errorAnterior = error;
+
+  return correccion;
+}
+// ---------------- SERVO ----------------
+void controlarServo(int correccion){
+  int angulo = 90 + correccion;
+  angulo = constrain(angulo, 60, 120);
+  direccion.write(angulo);
+}
+// ---------------- MOTORES ----------------
+void controlarMotores(int correccion, int izq, int der){
+  int velIzq = velocidadBase - correccion;
+  int velDer = velocidadBase + correccion;
+  velIzq = constrain(velIzq, 0, 255);
+  velDer = constrain(velDer, 0, 255);
+  // 🚨 NUEVA LÓGICA:
+  // Si detecta negro → ir hacia atrás
+  if(izq == HIGH || der == HIGH){
+
+    motorIzquierdoAtras(velIzq);
+    motorDerechoAtras(velDer);
+
+  }else{
+
+    motorIzquierdoAdelante(velIzq);
+    motorDerechoAdelante(velDer);
+
+  }
+}
+
+
+// ---------------- FUNCIONES MOTORES ----------------
+
+// Adelante
+void motorIzquierdoAdelante(int velocidad){
+  analogWrite(motorIzq, velocidad);
+}
+
+void motorDerechoAdelante(int velocidad){
+  analogWrite(motorDer, velocidad);
+}
+
+// Atrás (invertimos señal)
+void motorIzquierdoAtras(int velocidad){
+  analogWrite(motorIzq, 255 - velocidad);
+}
+
+void motorDerechoAtras(int velocidad){
+  analogWrite(motorDer, 255 - velocidad);
+}
