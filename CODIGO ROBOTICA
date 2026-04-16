@@ -1,0 +1,218 @@
+#include <Servo.h> // Librería del servo
+
+// ---------------- DEFINICION DE PINES ----------------
+
+// Sensores
+#define sensorIzq 22 // Sensor izquierdo
+#define sensorDer 35 // Sensor derecho
+
+// Motores
+#define motorIzq 19 // Motor izquierdo
+#define motorDer 32 // Motor derecho
+
+// Servo
+#define servoPin 25 // Pin servo
+
+Servo direccion; // Objeto servo
+
+// ---------------- CONFIGURACION PWM ESP32 ----------------
+
+#define canalIzq 0 // Canal PWM motor izquierdo
+#define canalDer 1 // Canal PWM motor derecho
+#define frecuenciaPWM 5000 // Frecuencia PWM
+#define resolucionPWM 8 // Resolución (0-255)
+
+// ---------------- VARIABLES DEL CODIGO PID ----------------
+
+const int velocidadBase = 140; // Velocidad base
+
+float Kp = 28; // Proporcional
+float Ki = 0.5; // Integral
+float Kd = 18; // Derivativo
+
+float error = 0; // Error actual
+float errorAnterior = 0; // Error anterior
+float sumaErrores = 0; // Integral acumulada
+
+// ---------------- VARIABLES TIEMPO ----------------
+
+unsigned long tiempoInicio = 0; // Inicio corrección
+bool enCorreccion = false; // Estado corrección
+const int tiempoCorreccion = 300; // 0.3s
+
+// ---------------- VOID SETUP ----------------
+
+void setup(){
+
+  pinMode(sensorIzq, INPUT); // Sensor izquierdo
+  pinMode(sensorDer, INPUT); // Sensor derecho
+
+  // Configurar PWM ESP32
+  ledcSetup(canalIzq, frecuenciaPWM, resolucionPWM); // Canal izquierdo
+  ledcAttachPin(motorIzq, canalIzq); // Asignar pin
+
+  ledcSetup(canalDer, frecuenciaPWM, resolucionPWM); // Canal derecho
+  ledcAttachPin(motorDer, canalDer); // Asignar pin
+
+  direccion.attach(servoPin); // Servo
+  direccion.write(90); // Centro
+}
+
+// ---------------- VOID LOOP ----------------
+
+void loop(){
+
+  int izq = leerSensorIzq(); // Leer sensor izquierdo
+  int der = leerSensorDer(); // Leer sensor derecho
+
+  calcularError(izq, der); // Calcular error
+
+  int correccion = calcularPID(); // PID
+
+  controlarServo(correccion); // Dirección
+
+  controlarMotores(correccion, izq, der); // Movimiento
+}
+
+// ---------------- METODOS DE SENSORES ----------------
+
+int leerSensorIzq(){
+  return !digitalRead(sensorIzq); // Negro = HIGH
+}
+
+int leerSensorDer(){
+  return !digitalRead(sensorDer); // Negro = HIGH
+}
+
+// ---------------- CALCULO DE ERROR PID ----------------
+
+void calcularError(int izq, int der){
+
+  if(izq == HIGH && der == LOW) error = -1; // Izquierda
+  else if(izq == LOW && der == HIGH) error = 1; // Derecha
+  else error = 0; // Centro
+}
+
+int calcularPID(){
+
+  sumaErrores += error; // Integral
+
+  sumaErrores = constrain(sumaErrores, -100, 100); // Limitar integral
+
+  float derivada = error - errorAnterior; // Derivada
+
+  float correccion = (Kp * error) + (Ki * sumaErrores) + (Kd * derivada); // PID
+
+  errorAnterior = error; // Guardar
+
+  return (int)correccion;
+}
+
+// ---------------- METODOS DE SERVO ----------------
+
+void controlarServo(int correccion){
+
+  int angulo = 90 + correccion; // Ajuste
+
+  angulo = constrain(angulo, 60, 120); // Limitar
+
+  direccion.write(angulo); // Aplicar
+}
+
+// ---------------- METODOS DE MOTORES ----------------
+
+void controlarMotores(int correccion, int izq, int der){
+
+  int velIzq = velocidadBase - correccion; // Ajuste izquierda
+  int velDer = velocidadBase + correccion; // Ajuste derecha
+
+  velIzq = constrain(velIzq, 0, 255); // Limitar
+  velDer = constrain(velDer, 0, 255); // Limitar
+
+  unsigned long tiempoActual = millis(); // Tiempo actual
+
+  // -------- CONTROL SIN DELAY --------
+
+  if(enCorreccion){
+
+    if(tiempoActual - tiempoInicio < tiempoCorreccion){
+
+      moverAdelante(velocidadBase, velocidadBase); // Avanza
+
+      return;
+    }
+    else{
+      enCorreccion = false;
+    }
+  }
+
+  // -------- LOGICA PRINCIPAL --------
+
+  if(izq == HIGH && der == HIGH){
+
+    moverAdelante(velIzq, velDer);
+  }
+
+  else if(izq == HIGH){
+
+    iniciarCorreccion();
+    girarIzquierda(velIzq, velDer);
+  }
+
+  else if(der == HIGH){
+
+    iniciarCorreccion();
+    girarDerecha(velIzq, velDer);
+  }
+
+  else{
+
+    moverAdelante(velIzq, velDer);
+  }
+}
+
+// ---------------- CONTROL DE CORRECCION ----------------
+
+void iniciarCorreccion(){
+
+  enCorreccion = true;
+  tiempoInicio = millis();
+}
+
+// ---------------- FUNCIONES DE MOVIMIENTO ----------------
+
+void moverAdelante(int velIzq, int velDer){
+
+  motorIzquierdoAdelante(velIzq);
+  motorDerechoAdelante(velDer);
+}
+
+void girarIzquierda(int velIzq, int velDer){
+
+  motorIzquierdoAdelante(velIzq);
+  motorDerechoAtras(velDer);
+}
+
+void girarDerecha(int velIzq, int velDer){
+
+  motorIzquierdoAtras(velIzq);
+  motorDerechoAdelante(velDer);
+}
+
+// ---------------- FUNCIONES BASICAS PWM ----------------
+
+void motorIzquierdoAdelante(int velocidad){
+  ledcWrite(canalIzq, velocidad); // PWM real
+}
+
+void motorDerechoAdelante(int velocidad){
+  ledcWrite(canalDer, velocidad); // PWM real
+}
+
+void motorIzquierdoAtras(int velocidad){
+  ledcWrite(canalIzq, 255 - velocidad); // Invertido
+}
+
+void motorDerechoAtras(int velocidad){
+  ledcWrite(canalDer, 255 - velocidad); // Invertido
+}
