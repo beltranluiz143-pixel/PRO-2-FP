@@ -1,5 +1,3 @@
-#include <Servo.h> // Librería del servo
-
 // ---------------- DEFINICION DE PINES ----------------
 
 // Sensores
@@ -10,18 +8,13 @@
 #define motorIzq 19 // Motor izquierdo
 #define motorDer 32 // Motor derecho
 
-// Servo
-#define servoPin 25 // Pin servo
-
-Servo direccion; // Objeto servo
-
 // ---------------- VARIABLES DEL CODIGO PID ----------------
 
 const int velocidadBase = 140; // Velocidad base
 
-float Kp = 28; // Proporcional (ajustado)
-float Ki = 0.5; // Integral (nuevo)
-float Kd = 18; // Derivativo (ajustado)
+float Kp = 28; // Proporcional
+float Ki = 0.5; // Integral
+float Kd = 18; // Derivativo
 
 float error = 0; // Error actual
 float errorAnterior = 0; // Error anterior
@@ -37,14 +30,11 @@ const int tiempoCorreccion = 300; // 0.3s
 
 void setup(){
 
-  pinMode(sensorIzq, INPUT); // Configurar sensor izquierdo
-  pinMode(sensorDer, INPUT); // Configurar sensor derecho
+  pinMode(sensorIzq, INPUT); // Sensor izquierdo
+  pinMode(sensorDer, INPUT); // Sensor derecho
 
-  pinMode(motorIzq, OUTPUT); // Configurar motor izquierdo
-  pinMode(motorDer, OUTPUT); // Configurar motor derecho
-
-  direccion.attach(servoPin); // Inicializar servo
-  direccion.write(90); // Centrar dirección
+  pinMode(motorIzq, OUTPUT); // Motor izquierdo
+  pinMode(motorDer, OUTPUT); // Motor derecho
 }
 
 // ---------------- VOID LOOP ----------------
@@ -56,11 +46,9 @@ void loop(){
 
   calcularError(izq, der); // Calcular error
 
-  int correccion = calcularPID(); // Obtener corrección PID
+  int correccion = calcularPID(); // PID
 
-  controlarServo(correccion); // Ajustar dirección
-
-  controlarMotores(correccion, izq, der); // Controlar movimiento
+  controlarMotores(correccion, izq, der); // Movimiento
 }
 
 // ---------------- METODOS DE SENSORES ----------------
@@ -77,48 +65,37 @@ int leerSensorDer(){
 
 void calcularError(int izq, int der){
 
-  if(izq == HIGH && der == LOW) error = -1; // Línea a la izquierda
-  else if(izq == LOW && der == HIGH) error = 1; // Línea a la derecha
-  else error = 0; // Centrado
+  if(izq == HIGH && der == LOW) error = -1; // Izquierda
+  else if(izq == LOW && der == HIGH) error = 1; // Derecha
+  else error = 0; // Centro
 }
 
 int calcularPID(){
 
-  sumaErrores += error; // Acumular error
+  sumaErrores += error; // Integral
 
-  sumaErrores = constrain(sumaErrores, -100, 100); // Limitar integral
+  sumaErrores = constrain(sumaErrores, -100, 100); // Limitar
 
-  float derivada = error - errorAnterior; // Calcular derivada
+  float derivada = error - errorAnterior; // Derivada
 
   float correccion = (Kp * error) + (Ki * sumaErrores) + (Kd * derivada); // PID
 
-  errorAnterior = error; // Guardar error actual
+  errorAnterior = error;
 
-  return (int)correccion; // Devolver corrección
-}
-
-// ---------------- METODOS DE SERVO ----------------
-
-void controlarServo(int correccion){
-
-  int angulo = 90 + correccion; // Aplicar corrección
-
-  angulo = constrain(angulo, 60, 120); // Limitar rango seguro
-
-  direccion.write(angulo); // Mover servo
+  return (int)correccion;
 }
 
 // ---------------- METODOS DE MOTORES ----------------
 
 void controlarMotores(int correccion, int izq, int der){
 
-  int velIzq = velocidadBase - correccion; // Ajuste izquierda
-  int velDer = velocidadBase + correccion; // Ajuste derecha
+  int velIzq = velocidadBase - correccion; // Ajuste PID
+  int velDer = velocidadBase + correccion; // Ajuste PID
 
-  velIzq = constrain(velIzq, 0, 255); // Limitar velocidad
-  velDer = constrain(velDer, 0, 255); // Limitar velocidad
+  velIzq = constrain(velIzq, 0, 255); // Limitar
+  velDer = constrain(velDer, 0, 255); // Limitar
 
-  unsigned long tiempoActual = millis(); // Obtener tiempo actual
+  unsigned long tiempoActual = millis(); // Tiempo
 
   // -------- CONTROL SIN DELAY --------
 
@@ -126,12 +103,12 @@ void controlarMotores(int correccion, int izq, int der){
 
     if(tiempoActual - tiempoInicio < tiempoCorreccion){
 
-      moverAdelante(velocidadBase, velocidadBase); // Avanza durante corrección
+      moverAdelante(velocidadBase, velocidadBase); // Corrección recta
 
-      return; // Evitar ejecutar resto
+      return;
     }
     else{
-      enCorreccion = false; // Terminar corrección
+      enCorreccion = false;
     }
   }
 
@@ -139,26 +116,24 @@ void controlarMotores(int correccion, int izq, int der){
 
   if(izq == HIGH && der == HIGH){
 
-    moverAdelante(velIzq, velDer); // Recto
+    moverAdelante(velIzq, velDer); // Recto con PID
   }
 
   else if(izq == HIGH){
 
-    iniciarCorreccion(); // Activar corrección
-
-    girarIzquierda(velIzq, velDer); // Girar izquierda
+    iniciarCorreccion();
+    girarIzquierda(velIzq, velDer);
   }
 
   else if(der == HIGH){
 
-    iniciarCorreccion(); // Activar corrección
-
-    girarDerecha(velIzq, velDer); // Girar derecha
+    iniciarCorreccion();
+    girarDerecha(velIzq, velDer);
   }
 
   else{
 
-    moverAdelante(velIzq, velDer); // Avanzar normal
+    moverAdelante(velIzq, velDer);
   }
 }
 
@@ -166,44 +141,44 @@ void controlarMotores(int correccion, int izq, int der){
 
 void iniciarCorreccion(){
 
-  enCorreccion = true; // Activar estado
-  tiempoInicio = millis(); // Guardar tiempo inicio
+  enCorreccion = true;
+  tiempoInicio = millis();
 }
 
 // ---------------- FUNCIONES DE MOVIMIENTO ----------------
 
 void moverAdelante(int velIzq, int velDer){
 
-  motorIzquierdoAdelante(velIzq); // Motor izquierdo adelante
-  motorDerechoAdelante(velDer);   // Motor derecho adelante
+  motorIzquierdoAdelante(velIzq);
+  motorDerechoAdelante(velDer);
 }
 
 void girarIzquierda(int velIzq, int velDer){
 
-  motorIzquierdoAdelante(velIzq); // Izquierdo adelante
-  motorDerechoAtras(velDer);      // Derecho atrás
+  motorIzquierdoAdelante(velIzq);
+  motorDerechoAtras(velDer);
 }
 
 void girarDerecha(int velIzq, int velDer){
 
-  motorIzquierdoAtras(velIzq); // Izquierdo atrás
-  motorDerechoAdelante(velDer); // Derecho adelante
+  motorIzquierdoAtras(velIzq);
+  motorDerechoAdelante(velDer);
 }
 
-// ---------------- FUNCIONES BASICAS DE MOTORES ----------------
+// ---------------- FUNCIONES BASICAS ----------------
 
 void motorIzquierdoAdelante(int velocidad){
-  analogWrite(motorIzq, velocidad); // PWM normal
+  analogWrite(motorIzq, velocidad);
 }
 
 void motorDerechoAdelante(int velocidad){
-  analogWrite(motorDer, velocidad); // PWM normal
+  analogWrite(motorDer, velocidad);
 }
 
 void motorIzquierdoAtras(int velocidad){
-  analogWrite(motorIzq, 255 - velocidad); // PWM invertido
+  analogWrite(motorIzq, 255 - velocidad);
 }
 
 void motorDerechoAtras(int velocidad){
-  analogWrite(motorDer, 255 - velocidad); // PWM invertido
+  analogWrite(motorDer, 255 - velocidad);
 }
